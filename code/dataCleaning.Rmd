@@ -1,0 +1,154 @@
+---
+title: "data cleaning"
+author: "Clint McKenna"
+date: "10/5/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+This is a file for cleaning the kaggle The Movie Database (TMDB) dataset https://www.kaggle.com/tmdb/tmdb-movie-metadata/.
+
+
+## data prep
+```{r}
+
+# load packages
+library(jsonlite)
+library(tidyverse)
+
+# functions
+select <- dplyr::select
+
+# read in data
+credits <- read.csv('../data/raw/tmdb_5000_credits.csv')
+movies <- read.csv('../data/raw/tmdb_5000_movies.csv')
+
+```
+
+
+## cast data JSON
+Next, I have to break up the JSON format to get the data in correct format for network purposes.
+
+```{r}
+
+# extract cast data
+# for this, I adapted code from Eric Freed in this kaggle kernel:
+# https://www.kaggle.com/epfreed/tidydata-movie-dataset-exploration
+actors <- credits %>%
+  mutate(cast = as.character(cast)) %>% 
+  filter(nchar(cast)>2) %>%
+  mutate(js = lapply(cast, fromJSON)) %>%  
+  unnest(js)
+
+# column names
+names(actors)
+
+# select only interesting vars
+actors <- actors %>%
+  select(movie_id, title, name, character, gender, actor_id = id)
+
+# preview data
+head(actors)
+
+# remove credits dataframe
+rm(credits)
+```
+
+
+## movie data JSON
+
+Next, I will extract JSON data from 5 columns in move dataset: genres, keywords, production companies, production countries, and spoken languages.
+
+```{r}
+
+# genres
+genres <- movies %>%
+  select(id, title, genres) %>%
+  mutate(genres = as.character(genres)) %>% 
+  filter(nchar(genres)>2) %>%
+  mutate(js = lapply(genres, fromJSON)) %>%  
+  unnest(js) %>%
+  select(id, title, genre = name)
+
+# keywords
+keywords <- movies %>%
+  select(id, title, keywords) %>%
+  mutate(keywords = as.character(keywords)) %>% 
+  filter(nchar(keywords)>2) %>%
+  mutate(js = lapply(keywords, fromJSON)) %>%  
+  unnest(js) %>%
+  select(id, title, keyword = name)
+
+# production companies
+companies <- movies %>%
+  select(id, title, production_companies) %>%
+  mutate(companies = as.character(production_companies)) %>% 
+  filter(nchar(companies)>2) %>%
+  mutate(js = lapply(companies, fromJSON)) %>%  
+  unnest(js) %>%
+  select(id, title, companies = name)
+
+# production countries
+countries <- movies %>%
+  select(id, title, production_countries) %>%
+  mutate(countries = as.character(production_countries)) %>% 
+  filter(nchar(countries)>2) %>%
+  mutate(js = lapply(countries, fromJSON)) %>%  
+  unnest(js) %>%
+  select(id, title, countries = name)
+
+# spoken languages
+languages <- movies %>%
+  select(id, title, spoken_languages) %>%
+  mutate(languages = as.character(spoken_languages)) %>% 
+  filter(nchar(languages)>2) %>%
+  mutate(js = lapply(languages, fromJSON)) %>%  
+  unnest(js) %>%
+  select(id, title, languages = name)
+
+
+
+
+```
+
+
+## clean up movies dataframe
+```{r}
+# remove JSON columns
+movies <- movies %>%
+  select(-genres, -keywords, -production_companies, -production_countries, -spoken_languages)
+
+
+```
+
+
+
+## save clean data
+
+Note: still some missing data. For instance, values of 0 for budget, revenue, etc. Leaving in for now.
+
+```{r}
+
+# save as csv
+write.csv(movies, '../data/clean/movies.csv')
+write.csv(actors, '../data/clean/actors.csv')
+write.csv(companies, '../data/clean/companies.csv')
+write.csv(countries, '../data/clean/countries.csv')
+write.csv(genres, '../data/clean/genres.csv')
+write.csv(keywords, '../data/clean/keywords.csv')
+write.csv(languages, '../data/clean/languages.csv')
+
+# remote datasets from memory
+rm(actors, companies, countries, genres, keywords, languages, movies)
+
+
+```
+
+
+
+
+
