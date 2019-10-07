@@ -1,0 +1,149 @@
+---
+title: "correlations"
+author: "Clint McKenna"
+date: "October 7, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+For this exercise, we will look at correlations in the kaggle The Movie Database (TMDB) dataset https://www.kaggle.com/tmdb/tmdb-movie-metadata/.
+
+
+## data prep
+```{r}
+
+# load packages
+library(tidyverse)
+
+# functions
+select <- dplyr::select
+
+# read in data
+movies <- read.csv('../data/clean/movies.csv')
+
+```
+
+## Movie runtimes and revenue
+
+First, we can look at the runtime of a movie and if that is associated with an increased revenue. 
+
+One thing to note: this dataset has some missing data. Some movies have zero as a value if it is missing, so we should recode this as NA so R can exclude it during analysis/plotting. There are a few ways to do this. I'll show base R and tidyverse methods. Revenue will be base R and runtime will be tidyverse.
+```{r}
+# base R uses indexing. Indexing in R is read as...
+# "dataframe[row, column]"
+# so, you can read this as "take the dataframe 'runtime', return the values for the rows that match the boolean test 'revenue = 0', in the column 'revenue', then overwrite this with NA"
+movies[movies$revenue == 0, 'revenue'] <- NA
+
+# another way I often use to recode is tidyverse function case_when
+# this is useful if I have to recode multiple values in a column
+movies <- movies %>%
+  mutate(runtime = case_when(   
+    runtime == 0 ~ NA_integer_, 
+    TRUE ~ runtime
+  ))
+
+# this can be read as...
+# mutate an existing column of 'runtime' (this will overwrite it)
+# if the test 'runtime = 0' is saisfied, replace it with NA_integer_
+# otherwise, just replace it with the existing value in the runtime column
+
+
+```
+
+One quirk with case_when is that if you are assingning NA values, you have to match it with the class of the existing column. So since runtime is an integer variable, we use NA_integer_. If it was a number, we would use NA_real_. If it was a string, we would use NA_character_, and so on.
+
+Now that we cleaned up these two columns, we can plot and test the correlation between runtime and revenue. Let's start with plotting:
+```{r}
+# plot using base R
+plot(movies$runtime, movies$revenue)
+
+```
+
+There are some extreme outliers on both runtime and revenue. But for the most part it seems like a positive relationship. 
+
+Now, lets run a correlation test to see if this we can indeed consider this a positive relationship. We can use the cor.test() function with the two variables as arguments.
+
+```{r}
+cor.test(movies$runtime, movies$revenue)
+```
+
+The output suggests that the correlation coefficient of .23, with a p-value very close to zero (make note of the scientific notation). Typically in social sciences, we consider a p < .05 to be "significant" so we can conclude that there is indeed an association between movie runtime and revenue. Also note that the degrees of freedom (df), which for correlations is n-2 is 3373. The dataset has 4803 rows, meaning that there are over 1400 movies that were excluded due to missing data.
+
+Lets go back to plotting. This time, I'll introduce the ggplot2 package, which was loaded as part of tidyverse. ggplot2 lets you output a graph, and add in layers. It is highly customizable but has a bit of a learning curve.
+
+Let's start with creating a simple scatterplot.
+
+```{r}
+# if you want to check the arguments for ggplot, you can run ?ggplot
+
+# we will save out graph to object called 'p'
+p <- ggplot(movies, aes(x = runtime, y = revenue)) +
+  geom_point(
+    color = 'blue',
+    size = 2,
+    alpha = .25)      # alpha adjusts the transparency
+
+# output the plot
+p
+
+```
+
+ggplot2 has some built-in themes that are nice. Here is one called 'light'
+
+```{r}
+# update theme
+p <- p + theme_light()
+
+p
+
+```
+
+
+We can make some more customizations below.
+```{r}
+
+# remove scientific notation from y-axis
+p <- p + scale_y_continuous(labels = scales::comma)
+
+
+# add a title
+p <- p + labs(title = 'Longer Movies = Bigger Revenue')
+
+# rename x- and y-axis labels
+p <- p + labs(y = 'Revenue (USD)',
+              x = 'Runtime (Minutes)')
+
+# plot updated p
+p
+
+```
+
+
+You can also do things like add on layers. Here, we will add on an fitted regression line.
+
+```{r}
+# add fitted line
+p + stat_smooth(
+  method = 'lm',  # linear model
+  formula = y ~ x,
+  size = 2,
+  color = 'red')
+
+```
+
+We are assuming linear relationship, but this might actually be an exponential relationship without that outlier on the right.
+
+
+
+
+
+
+
+
+
+
+
