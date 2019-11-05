@@ -1,0 +1,175 @@
+---
+title: "genreNetwork"
+author: "Clint McKenna"
+date: "October 22, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+For this exercise, we will look at TMDB data (https://www.kaggle.com/tmdb/tmdb-movie-metadata). We will create a network of genres in the dataset, where each genre is a node. The size of the nodes will coorespond to the frequency of genres (larger = more movies). Finally, the edges will indicate that a movie shares two or more genres.
+
+
+## data prep
+```{r}
+
+# load packages
+library(igraph)
+library(tidyverse)
+
+# functions
+select <- dplyr::select
+
+# read in data
+movies <- read.csv('../data/clean/movies.csv')
+actors <- read.csv('../data/clean/actors.csv')
+
+# just get the first 10 actors listed on each movie
+actors <- actors %>%
+  #arrange(title) %>%
+  group_by(title) %>%
+  slice(c(1:5)) %>%
+  ungroup()
+  
+
+# get actors from highest budget movies
+top <- movies %>% 
+  select(title, budget) %>%
+  #group_by(title) %>%
+  top_n(n = 100, wt = budget)
+actors <- left_join(top, actors, by = 'title')
+
+
+# get sample of 500 movies for genre list
+# actors <- actors %>%
+  # sample(., 500) %>%
+  #filter(substr(title, 1, 1) == 'A')
+  
+
+# merge back with genres
+
+
+```
+
+
+So let's write a function to get the combinations we are looking for.
+```{r}
+
+# function for acquiring genre combinations
+# x will be the input for the fuction - the dataframe we are using
+getCombinations <- function(x) {
+
+  # the column we are looking to make into an edge list is in quotes
+  input <- x[,'name']
+  
+  # here, we make a new object within our function for possible combinations
+  combinations <- combn(input, m = 2) %>% 
+  t()
+  
+  # and output a dataframe, which is returned when function is run
+  output <- data.frame(
+    actor1 = combinations[,1],
+    actor2 = combinations[,2]
+  )
+  
+  return(output)
+  rm(combinations, output)
+}
+
+
+
+```
+
+
+
+
+
+So here is the steps we will take:
+- For each movie, calculate the combinations of genres possible
+- 
+
+
+```{r}
+# remove films that only have one genre (one row in dataframe)
+# here, we group by individual movies, add a column for the genre count
+# then, filter out movies where count is 1 or less
+actorList <- actors %>%
+  group_by(title) %>%
+  mutate(count = n()) %>%
+  filter(count > 2) %>%
+  select(-count) %>% 
+  ungroup() %>%
+  mutate_all(as.character) %>%
+  as.data.frame()
+
+# use split to split up dataframe into individual lists for each movie
+actorList <- actorList %>%
+  # mutate(group = group_indices(., title)) %>%
+  # split(.$group) %>%
+  # map_dfr(getCombinations, .id = 'group')
+  split(.$title) %>%
+  map_dfr(getCombinations, .id = 'title')
+
+
+```
+
+
+Now, let's preview edgelist.
+```{r}
+# preview
+head(actorList)
+tail(actorList)
+
+```
+
+
+The last movie, Zulu, should have 3 genres: Crime, Drama, Thriller. Let's check that against the original genres dataset to make sure.
+```{r}
+actors %>%
+  filter(title == 'Avatar')
+
+```
+
+Great! Now with our edgelist, we can proceed to visualizing the network. For this, we will use the igraph package.
+```{r}
+# for the next steps, we need to move title to the last column
+actorList <- actorList %>%
+  select(actor1, actor2, title)
+
+# create network object. non-directed
+net <- graph_from_data_frame(
+  actorList,
+  directed = FALSE
+)
+
+# plot
+plot(net, 
+     layout = layout_nicely,
+     # vertex.label.cex=0.75,
+     # vertex.label.font=2,
+     # vertex.label.color='black', 
+     vertex.label = NA,
+     vertex.shape='circle', 
+     vertex.size = 2,
+     vertex.color = 'plum',
+     
+     edge.width = 1
+     )
+
+```
+
+
+Add edge weights
+```{r}
+E(net)$weight <- 1
+
+
+simplify(net, edge.attr.comb = list(weight = 'sum'))
+
+
+plot(net)
+
+```
+

@@ -1,0 +1,208 @@
+---
+title: "Network Practice for UROP"
+author: "Clint McKenna"
+date: "November 5, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+For this exercise, we will look at TMDB data (https://www.kaggle.com/tmdb/tmdb-movie-metadata). We will create a network of genres in the dataset, where each genre is a node. The size of the nodes will coorespond to the frequency of genres (larger = more movies). Finally, the edges will indicate that a movie shares two or more genres.
+
+
+## data prep
+I usually start all my scripts off with a code chunk to load in packages, datasets, define custom functions, etc.
+```{r}
+
+# load packages
+library(igraph)
+library(tidyverse)
+
+# functions
+select <- dplyr::select
+
+# read in data
+movies <- read.csv('../data/clean/movies.csv')
+genres <- read.csv('../data/clean/genres.csv')
+genreEdgeList <- read.csv('../data/clean/genreEdgeList.csv')
+
+```
+
+
+## Previewing Data Files
+Here, we will try out some common functions in R to look at the data we are working with. 
+
+Lets start by looking at how the genres were listed originally in the data.
+```{r}
+# first few rows of dataset
+head(genres)
+
+# last few rows of dataset
+tail(genres)
+```
+
+So each row in the genres dataset is a genre. If a movie has multiple genres, it will have a row for each. If we wanted to inspect a specific movie like Avatar, we can use the tidyverse function filter()
+
+```{r}
+# filter only one title
+genres %>%
+  filter(title == 'Avatar')
+```
+
+Right now, this data is in "long" format. There is one row for each genre. If a movie has multiple genres, it has one row for each. The first entry, Avatar, has 4: Action, Adventure, Fantasy, and Science Fiction.
+
+How can we reshape the data for network visualization? There are a usually a couple ways that network data is structured: an adjacency matrix and an edge list. For this task, we will focus on an edge list, just because I find that more intuitive.
+
+An edge list has two columns. You can think of each row as a pair of nodes in a network that share an edge of some sort. In this case, it if they both occur in a movie. If we just look at the first movie above, we want a edge list that looks like this:
+
+Action, Adventure
+Action, Fantasy
+Action, Science Fiction
+Adventure, Fantasy
+Adventure, Science Fiction
+Fantasy, Science Fiction
+
+If we convert the genres dataset to an edgelist, we get something like the genreEdgeList dataset. Here is a preview.
+
+```{r}
+# preview dataset
+head(genreEdgeList)
+tail(genreEdgeList)
+
+# just look at avatar
+genreEdgeList %>%
+  filter(title == 'Avatar')
+```
+
+Looks right. It is the same pairings we wrote out above. Now, an edgelist with all the movies in the TMDB data is huge, so just for practice I limited it to the movies with the top 100 budgets.
+
+## Visualizing Network
+
+Now that we have an edglist, we can import it into an igraph function using the igraph package. igraph also has libraries in python and other languages, so its a good one to be familiar with in case you end up doing more work with networks.
+
+```{r}
+# had to filter out unneccessary columns since igraph didnt like this
+genreEdgeList <- genreEdgeList %>%
+  select(genre1, genre2, title)
+
+# create network object. non-directed
+net <- graph_from_data_frame(
+  genreEdgeList,
+  directed = FALSE
+)
+
+# plot
+plot(net)
+
+```
+
+Looks a little whacky to start with. For one, if there are multiple edges between nodes, the plot with make a separate line for each edge. Instead, we want to convert this to a weighted edge (so thicker lines = more cooccurrences of the relationships).
+
+```{r}
+# can check igraph object is weighted
+is.weighted(net)
+
+# import again, as weighted
+net <- graph.adjacency(get.adjacency(net), weighted=TRUE)
+
+# plot again
+plot(net)
+
+```
+
+Looks better, but now there are a ton of arrows. What does this refer to? When importing, igraph thinks that we are using a directed graph (with "sender" and "receiver" nodes). We can specify as undirected to fix that.
+
+```{r}
+# specify as undirected
+net <- as.undirected(net)
+
+# plot
+# this time, we will include line thickness as weight
+plot(net,
+     edge.width = E(net)$weight)
+```
+
+The really heavily weighted lines are huge and distoring out graph. We can make this look better by applying some sort of function to the edge width argument, like dividing by a constant. I'll take the natural log in order to normalize it.
+
+```{r}
+# normalize edge weights in plot
+plot(net,
+     edge.width = log(E(net)$weight))
+
+```
+
+Note that I could have also just changed the attributes in the igraph object itself. If we check that, you'll see that it is still heavily skewed.
+```{r}
+# check edge attributes of net
+edge_attr(net)
+```
+
+We can also do lots of things to jazz up the plots by adding arguments to the plot() function. Here, we can change it to be circular, display the labels of nodes, and change the color.
+
+```{r}
+# plot with new arguments
+plot(net,
+     edge.width = log(E(net)$weight),
+     layout = layout_in_circle,
+     vertex.label.color='black',
+     vertex.shape='circle', 
+     vertex.color = 'plum')
+
+```
+
+Can also adjust the size of the text and the nodes.
+
+```{r}
+# plot with size arguments
+plot(net,
+     edge.width = log(E(net)$weight),
+     layout = layout_in_circle,
+     vertex.label.font = 2,
+     vertex.label.color='black',
+     vertex.shape='circle', 
+     vertex.size = 25,
+     vertex.color = 'plum')
+
+
+
+```
+
+
+## Degree Centrality of Network
+
+Now, let's calculate some basic metrics often reported in networks. There are many, but we'll just look at 3:
+- *Degree*: degree is a count of the number of neighbors a node has
+- *Betweenness*: betweenness centrality measures the extent to which a vertex lies on paths between other vertices.
+- *Eigenvector*: eigenvector centrality - central vertices are those with many central neighbors
+
+```{r}
+# degree
+degree(net)
+
+```
+
+As you can see, degree is pretty easy to discern from the plot above and very straightforward.
+
+```{r}
+# betweenness
+betweenness(net)
+```
+
+Betweenness makes less sense in this network, but you can think of it like this: does the path between nodes i and j have to go through another node k? For nodes like Animation, the answer is a resounding 'no'. You'll see that even though it has decent degree score, it tends to only occur with select other genres.
+
+```{r}
+# eigenvector
+eigen_centrality(net)$vector
+
+```
+
+Eigenvector centrality measures a  node's influence on the network. It has more involved mathematical calculations from the adjacency matrix. From https://www.sci.unich.it/~francesc/teaching/network/eigenvector.html:
+
+Let $A = (a_{i,j})$ be the adjacency matrix of a graph. The eigenvector centrality $x_{i}$ of node $i$ is given by: $$x_i = \frac{1}{\lambda} \sum_k a_{k,i} \, x_k$$ where $\lambda \neq 0$ is a constant. In matrix form we have: $$\lambda x = x A$$
+
+So you can have a node with high eigenvector centrality, but low degree centrality. An example of eigenvector centrality is the PageRank algorithm for Google's search engine. 
+
+
+

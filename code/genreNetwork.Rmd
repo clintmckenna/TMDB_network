@@ -26,6 +26,15 @@ select <- dplyr::select
 movies <- read.csv('../data/clean/movies.csv')
 genres <- read.csv('../data/clean/genres.csv')
 
+
+# get actors from highest budget movies
+top <- movies %>% 
+  select(title, budget) %>%
+  #group_by(title) %>%
+  top_n(n = 100, wt = budget)
+genres <- left_join(top, genres, by = 'title')
+
+
 ```
 
 
@@ -82,6 +91,7 @@ data.frame(
 
 So let's write a function to get the combinations we are looking for.
 ```{r}
+
 # function for acquiring genre combinations
 # x will be the input for the fuction - the dataframe we are using
 getCombinations <- function(x) {
@@ -177,13 +187,87 @@ plot(net)
 
 Add edge weights
 ```{r}
-E(net)$weight <- 1
+net2 <- graph.adjacency(get.adjacency(net),weighted=TRUE)
+net2 <- as.undirected(net2)
+
+plot(net2,
+     layout = layout_in_circle,
+     # layout = layout_nicely,
+     # vertex.label.cex=0.75,
+     vertex.label.font=2,
+     vertex.label.color='black',
+     # vertex.label = NA,
+     vertex.shape='circle', 
+     vertex.size = 10,
+     vertex.color = 'plum',
+     edge.width = 1)
 
 
-simplify(net, edge.attr.comb = list(weight = 'sum'))
 
 
-plot(net)
+
+
+
 
 ```
+
+
+## degree centrality
+
+degree is a count of the number of neighbors a node has
+
+Betweenness centrality measures the extent to which a vertex lies on paths between other vertices.
+
+eigenvector centrality - central vertices are those with many central neighbors
+
+
+
+```{r}
+
+degree(net2)
+
+betweenness(net2)
+
+eigen_centrality(net2)$vector
+
+
+
+
+```
+
+
+```{r}
+
+
+plot(net2,
+     # layout = layout_in_circle,
+     layout = layout_nicely,
+     # vertex.label.cex=0.75,
+     vertex.label.font=2,
+     vertex.label.color='black',
+     # vertex.label = NA,
+     vertex.shape='circle', 
+     vertex.size = degree(net2)*2,
+     vertex.color = 'plum',
+     edge.width = 1)
+
+
+
+```
+
+
+
+
+
+```{r}
+
+#write.csv(genreList, '../data/clean/genreEdgeList.csv')
+
+```
+
+
+
+
+
+
 
