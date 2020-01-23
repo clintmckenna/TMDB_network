@@ -98,7 +98,7 @@ plot(net)
 
 ```
 
-Looks a little whacky to start with. For one, if there are multiple edges between nodes, the plot with make a separate line for each edge. Instead, we want to convert this to a weighted edge (so thicker lines = more cooccurrences of the relationships).
+Looks a little wacky to start with. For one, if there are multiple edges between nodes, the plot with make a separate line for each edge. Instead, we want to convert this to a weighted edge (so thicker lines = more cooccurrences of the relationships).
 
 ```{r}
 # can check igraph object is weighted
@@ -163,7 +163,7 @@ plot(net,
      vertex.label.color='black',
      vertex.shape='circle', 
      vertex.size = 25,
-     vertex.color = 'plum')
+     vertex.color = 'red')
 
 
 
